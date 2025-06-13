@@ -71,6 +71,15 @@ export default function Home() {
     startTimer();
   };
 
+  const handleTimerClick = () => {
+    if (timerState.isRunning && !timerState.isPaused) {
+      pauseTimer();
+    } else {
+      initAudio();
+      startTimer();
+    }
+  };
+
   const handleSettingsChange = (newSettings: typeof settings) => {
     updateSettings(newSettings);
     setIsSettingsOpen(false);
@@ -97,7 +106,7 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center justify-center p-6 space-y-8">
         <TimerDisplay 
           timerState={timerState} 
-          onTimerClick={handleStart}
+          onTimerClick={handleTimerClick}
         />
         <ProgressIndicators 
           timerState={timerState} 
