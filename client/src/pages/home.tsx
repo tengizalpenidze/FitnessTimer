@@ -49,7 +49,7 @@ export default function Home() {
   useEffect(() => {
     if (timerState.timeRemaining <= 3 && 
         timerState.timeRemaining > 0 && 
-        timerState.currentPhase === 'workout' &&
+        (timerState.currentPhase === 'workout' || timerState.currentPhase === 'rest') &&
         timerState.isRunning) {
       playPulse();
     }

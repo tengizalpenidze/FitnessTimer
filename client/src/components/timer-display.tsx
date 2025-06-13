@@ -26,7 +26,7 @@ export default function TimerDisplay({ timerState }: TimerDisplayProps) {
 
   const showPulse = timerState.timeRemaining <= 3 && 
                    timerState.timeRemaining > 0 && 
-                   timerState.currentPhase === 'workout' &&
+                   (timerState.currentPhase === 'workout' || timerState.currentPhase === 'rest') &&
                    timerState.isRunning;
 
   return (
