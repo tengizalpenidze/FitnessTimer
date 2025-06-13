@@ -49,6 +49,90 @@ export function useHIITTimer() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const workerRef = useRef<Worker | null>(null);
 
+  // Save settings to localStorage
+  useEffect(() => {
+    localStorage.setItem('hiitSettings', JSON.stringify(settings));
+  }, [settings]);
+
+  const advancePhase = useCallback((currentState: TimerState, currentSettings: TimerSettings): TimerState => {
+    switch (currentState.currentPhase) {
+      case 'workout':
+        if (currentState.currentRound < currentSettings.roundsPerSet) {
+          // Move to rest
+          return {
+            ...currentState,
+            currentPhase: 'rest',
+            timeRemaining: currentSettings.restTime,
+            totalTime: currentSettings.restTime,
+            phaseJustChanged: true,
+          };
+        } else {
+          // End of set
+          if (currentState.currentSet < currentSettings.numberOfSets) {
+            return {
+              ...currentState,
+              currentPhase: 'setrest',
+              timeRemaining: currentSettings.setRestTime,
+              totalTime: currentSettings.setRestTime,
+              phaseJustChanged: true,
+            };
+          } else {
+            // Workout complete
+            return {
+              ...currentState,
+              currentPhase: 'complete',
+              isRunning: false,
+              phaseJustChanged: true,
+            };
+          }
+        }
+
+      case 'rest':
+        // Move to next round
+        return {
+          ...currentState,
+          currentRound: currentState.currentRound + 1,
+          currentPhase: 'workout',
+          timeRemaining: currentSettings.workoutTime,
+          totalTime: currentSettings.workoutTime,
+          phaseJustChanged: true,
+        };
+
+      case 'setrest':
+        // Move to next set
+        return {
+          ...currentState,
+          currentSet: currentState.currentSet + 1,
+          currentRound: 1,
+          currentPhase: 'workout',
+          timeRemaining: currentSettings.workoutTime,
+          totalTime: currentSettings.workoutTime,
+          phaseJustChanged: true,
+        };
+
+      default:
+        return currentState;
+    }
+  }, []);
+
+  const tick = useCallback(() => {
+    setTimerState(prev => {
+      if (!prev.isRunning || prev.isPaused) return prev;
+
+      const newTimeRemaining = prev.timeRemaining - 1;
+      
+      if (newTimeRemaining <= 0) {
+        return advancePhase(prev, settings);
+      }
+
+      return {
+        ...prev,
+        timeRemaining: newTimeRemaining,
+        phaseJustChanged: false,
+      };
+    });
+  }, [advancePhase, settings]);
+
   // Initialize service worker for background timer
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -87,91 +171,7 @@ export function useHIITTimer() {
         workerRef.current.terminate();
       }
     };
-  }, []);
-
-  // Save settings to localStorage
-  useEffect(() => {
-    localStorage.setItem('hiitSettings', JSON.stringify(settings));
-  }, [settings]);
-
-  const tick = useCallback(() => {
-    setTimerState(prev => {
-      if (!prev.isRunning || prev.isPaused) return prev;
-
-      const newTimeRemaining = prev.timeRemaining - 1;
-      
-      if (newTimeRemaining <= 0) {
-        return advancePhase(prev);
-      }
-
-      return {
-        ...prev,
-        timeRemaining: newTimeRemaining,
-        phaseJustChanged: false,
-      };
-    });
-  }, []);
-
-  const advancePhase = useCallback((currentState: TimerState): TimerState => {
-    switch (currentState.currentPhase) {
-      case 'workout':
-        if (currentState.currentRound < settings.roundsPerSet) {
-          // Move to rest
-          return {
-            ...currentState,
-            currentPhase: 'rest',
-            timeRemaining: settings.restTime,
-            totalTime: settings.restTime,
-            phaseJustChanged: true,
-          };
-        } else {
-          // End of set
-          if (currentState.currentSet < settings.numberOfSets) {
-            return {
-              ...currentState,
-              currentPhase: 'setrest',
-              timeRemaining: settings.setRestTime,
-              totalTime: settings.setRestTime,
-              phaseJustChanged: true,
-            };
-          } else {
-            // Workout complete
-            return {
-              ...currentState,
-              currentPhase: 'complete',
-              isRunning: false,
-              phaseJustChanged: true,
-            };
-          }
-        }
-
-      case 'rest':
-        // Move to next round
-        return {
-          ...currentState,
-          currentRound: currentState.currentRound + 1,
-          currentPhase: 'workout',
-          timeRemaining: settings.workoutTime,
-          totalTime: settings.workoutTime,
-          phaseJustChanged: true,
-        };
-
-      case 'setrest':
-        // Move to next set
-        return {
-          ...currentState,
-          currentSet: currentState.currentSet + 1,
-          currentRound: 1,
-          currentPhase: 'workout',
-          timeRemaining: settings.workoutTime,
-          totalTime: settings.workoutTime,
-          phaseJustChanged: true,
-        };
-
-      default:
-        return currentState;
-    }
-  }, [settings]);
+  }, [tick]);
 
   const startTimer = useCallback(() => {
     setTimerState(prev => {
