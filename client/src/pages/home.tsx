@@ -81,7 +81,7 @@ export default function Home() {
       {/* Header */}
       <header className="bg-gray-800 p-4 shadow-lg">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-primary">Free HIIT</h1>
+          <h1 className="text-2xl font-bold text-primary">Just HIIT</h1>
           <Button
             variant="ghost"
             size="icon"
@@ -95,7 +95,10 @@ export default function Home() {
 
       {/* Main Timer Interface */}
       <main className="flex-1 flex flex-col items-center justify-center p-6 space-y-8">
-        <TimerDisplay timerState={timerState} />
+        <TimerDisplay 
+          timerState={timerState} 
+          onTimerClick={handleStart}
+        />
         <ProgressIndicators 
           timerState={timerState} 
           settings={settings}

@@ -7,9 +7,10 @@ interface TimerDisplayProps {
     totalTime: number;
     isRunning: boolean;
   };
+  onTimerClick: () => void;
 }
 
-export default function TimerDisplay({ timerState }: TimerDisplayProps) {
+export default function TimerDisplay({ timerState, onTimerClick }: TimerDisplayProps) {
   const progress = timerState.totalTime > 0 
     ? ((timerState.totalTime - timerState.timeRemaining) / timerState.totalTime) * 100 
     : 0;
@@ -44,8 +45,9 @@ export default function TimerDisplay({ timerState }: TimerDisplayProps) {
       {/* Timer Circle */}
       <div className="relative">
         <div 
-          className="timer-circle w-80 h-80 rounded-full flex items-center justify-center border-8 border-gray-700"
+          className="timer-circle w-80 h-80 rounded-full flex items-center justify-center border-8 border-gray-700 cursor-pointer hover:border-gray-600 transition-colors active:scale-95 transform duration-150"
           style={{ '--progress': `${progress}%` } as React.CSSProperties}
+          onClick={onTimerClick}
         >
           <div className="text-center">
             <div className="text-6xl font-mono font-bold">

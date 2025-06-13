@@ -1,4 +1,4 @@
-const CACHE_NAME = 'free-hiit-v1';
+const CACHE_NAME = 'just-hiit-v1';
 const urlsToCache = [
   '/',
   '/static/js/bundle.js',
