@@ -64,9 +64,34 @@ app.use((req, res, next) => {
     res.status(status).json({ message });
   });
 
-  // Always use development server for both dev and production
-  // This ensures consistent module resolution and avoids build complexity
-  await setupVite(app, server);
+  // Setup serving based on environment
+  if (process.env.NODE_ENV === "production") {
+    // In production, serve static files first, then Vite for dynamic content
+    const path = await import("path");
+    const fs = await import("fs");
+    const distPath = path.resolve(import.meta.dirname, "..", "dist", "public");
+    
+    if (fs.existsSync(distPath)) {
+      // Serve static files with proper headers
+      app.use(express.static(distPath, {
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.js') || filePath.endsWith('.mjs')) {
+            res.setHeader('Content-Type', 'application/javascript');
+          } else if (filePath.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
+          } else if (filePath.endsWith('.json')) {
+            res.setHeader('Content-Type', 'application/json');
+          }
+        }
+      }));
+    }
+    
+    // Setup Vite for development content serving
+    await setupVite(app, server);
+  } else {
+    // Development mode
+    await setupVite(app, server);
+  }
 
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
