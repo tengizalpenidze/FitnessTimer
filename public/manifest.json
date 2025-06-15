@@ -1,0 +1,18 @@
+{
+  "name": "Just HIIT",
+  "short_name": "Just HIIT",
+  "description": "HIIT Timer App with configurable intervals and background audio support",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1f2937",
+  "theme_color": "#1976D2",
+  "orientation": "portrait",
+  "categories": ["health", "fitness", "sports"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}
