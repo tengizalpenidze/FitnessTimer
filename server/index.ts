@@ -64,9 +64,47 @@ app.use((req, res, next) => {
     res.status(status).json({ message });
   });
 
-  // Setup Vite for both development and production
-  // In production, we'll serve the development build via Vite
-  await setupVite(app, server);
+  // Setup serving strategy based on environment
+  if (process.env.NODE_ENV === "production") {
+    // In production, serve static files first, then fallback to Vite dev server
+    const path = await import("path");
+    const fs = await import("fs");
+    const distPath = path.resolve(import.meta.dirname, "..", "dist", "public");
+    
+    if (fs.existsSync(distPath)) {
+      // Serve static files with proper MIME types
+      app.use(express.static(distPath, {
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.js') || filePath.endsWith('.mjs')) {
+            res.setHeader('Content-Type', 'application/javascript');
+          } else if (filePath.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
+          }
+        }
+      }));
+      
+      // Special route for development server fallback
+      app.get('/dev', async (req, res, next) => {
+        // Redirect to development server for full functionality
+        await setupVite(app, server);
+        next();
+      });
+      
+      // Catch-all for SPA - serve index.html for all non-API routes
+      app.get("*", (req, res) => {
+        if (req.path.startsWith('/api/')) {
+          return res.status(404).send('API route not found');
+        }
+        res.sendFile(path.resolve(distPath, "index.html"));
+      });
+    } else {
+      // Fallback to development server if no build exists
+      await setupVite(app, server);
+    }
+  } else {
+    // Development mode - use Vite dev server
+    await setupVite(app, server);
+  }
 
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
