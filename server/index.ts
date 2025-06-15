@@ -6,8 +6,13 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Set proper MIME types for production
+// Set proper MIME types and debug logging for production
 app.use((req, res, next) => {
+  // Debug logging for production
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`Request: ${req.method} ${req.path}`);
+  }
+  
   if (req.path.endsWith('.js') || req.path.endsWith('.mjs')) {
     res.setHeader('Content-Type', 'application/javascript');
   } else if (req.path.endsWith('.css')) {
@@ -62,10 +67,34 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
-    serveStatic(app);
+    // Production static file serving with explicit asset handling
+    const path = await import("path");
+    const distPath = path.resolve(import.meta.dirname, "..", "public");
+    
+    // Serve static assets first with proper MIME types
+    app.use("/assets", express.static(path.join(distPath, "assets"), {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.js') || filePath.endsWith('.mjs')) {
+          res.setHeader('Content-Type', 'application/javascript');
+        } else if (filePath.endsWith('.css')) {
+          res.setHeader('Content-Type', 'text/css');
+        }
+      }
+    }));
+    
+    // Serve other static files
+    app.use(express.static(distPath));
+    
+    // Catch-all route for SPA - only for non-asset requests
+    app.get("*", (req, res) => {
+      if (req.path.startsWith('/assets/') || req.path.startsWith('/api/')) {
+        return res.status(404).send('Not found');
+      }
+      res.sendFile(path.resolve(distPath, "index.html"));
+    });
   }
 
   // ALWAYS serve the app on port 5000
