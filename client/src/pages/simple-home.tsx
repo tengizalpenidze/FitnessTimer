@@ -30,6 +30,8 @@ const defaultSettings: TimerSettings = {
   audioEnabled: true,
 };
 
+const PREPARE_TIME = 5; // Reduced to 5 seconds
+
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -74,13 +76,18 @@ export default function SimpleHome() {
   }, []);
 
   // Audio functions
-  const playBeep = useCallback(() => {
-    if (!settings.audioEnabled || !audioInitialized || !audioContextRef.current) return;
+  const playBeep = useCallback(async () => {
+    if (!settings.audioEnabled || !audioContextRef.current) return;
     
     try {
-      // Resume audio context if suspended
+      // Ensure audio context is running
       if (audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume();
+        await audioContextRef.current.resume();
+      }
+      
+      if (audioContextRef.current.state !== 'running') {
+        console.log('Audio context not running:', audioContextRef.current.state);
+        return;
       }
       
       const oscillator = audioContextRef.current.createOscillator();
@@ -89,23 +96,23 @@ export default function SimpleHome() {
       oscillator.connect(gainNode);
       gainNode.connect(audioContextRef.current.destination);
       
-      // Create a sharper, more audible beep
-      oscillator.frequency.setValueAtTime(800, audioContextRef.current.currentTime);
-      oscillator.type = 'square'; // More pronounced sound
+      // Create a more audible beep with higher frequency
+      oscillator.frequency.setValueAtTime(1000, audioContextRef.current.currentTime);
+      oscillator.type = 'sine'; // Smoother but still audible
       
-      // Sharp attack and decay for clear beep
-      gainNode.gain.setValueAtTime(0, audioContextRef.current.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.5, audioContextRef.current.currentTime + 0.05);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.3);
+      // Clear volume envelope
+      gainNode.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.3, audioContextRef.current.currentTime + 0.1);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioContextRef.current.currentTime + 0.4);
       
       oscillator.start(audioContextRef.current.currentTime);
-      oscillator.stop(audioContextRef.current.currentTime + 0.3);
+      oscillator.stop(audioContextRef.current.currentTime + 0.4);
       
-      console.log('Beep played at:', new Date().toLocaleTimeString());
+      console.log('Beep played at:', new Date().toLocaleTimeString(), 'Audio state:', audioContextRef.current.state);
     } catch (error) {
       console.log('Audio playback failed:', error);
     }
-  }, [settings.audioEnabled, audioInitialized]);
+  }, [settings.audioEnabled]);
 
   const speak = useCallback((text: string) => {
     if (!settings.audioEnabled || !audioInitialized) return;
@@ -240,7 +247,24 @@ export default function SimpleHome() {
     if (!audioInitialized) {
       initializeAudio();
     }
-    setTimerState(prev => ({ ...prev, isRunning: true, isPaused: false }));
+    setTimerState(prev => ({ 
+      ...prev, 
+      isRunning: true, 
+      isPaused: false,
+      currentPhase: 'ready',
+      timeRemaining: PREPARE_TIME,
+      totalTime: PREPARE_TIME
+    }));
+  };
+
+  const handleTimerClick = () => {
+    if (!timerState.isRunning) {
+      startTimer();
+    } else if (timerState.isPaused) {
+      pauseTimer();
+    } else {
+      stopTimer();
+    }
   };
 
   const pauseTimer = () => {
@@ -285,21 +309,24 @@ export default function SimpleHome() {
       <div className="max-w-md mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">Just HIIT</h1>
-          <p className="text-gray-400">High Intensity Interval Timer</p>
+          <h1 className="text-3xl font-bold mb-2 text-white">Just HIIT</h1>
+          <p className="text-gray-300">High Intensity Interval Timer</p>
         </div>
 
         {/* Timer Display */}
-        <div className={`relative w-80 h-80 mx-auto mb-8 rounded-full ${getPhaseColor()} flex items-center justify-center transition-colors duration-300 ${
-          timerState.timeRemaining <= 3 && timerState.timeRemaining > 0 && (timerState.currentPhase === 'workout' || timerState.currentPhase === 'rest' || timerState.currentPhase === 'setrest') 
-            ? 'ring-4 ring-red-500 ring-opacity-75 animate-pulse' 
-            : ''
-        }`}>
+        <div 
+          className={`relative w-80 h-80 mx-auto mb-8 rounded-full ${getPhaseColor()} flex items-center justify-center transition-colors duration-300 cursor-pointer hover:opacity-90 ${
+            timerState.timeRemaining <= 3 && timerState.timeRemaining > 0 && (timerState.currentPhase === 'workout' || timerState.currentPhase === 'rest' || timerState.currentPhase === 'setrest') 
+              ? 'ring-4 ring-red-500 ring-opacity-75 animate-pulse' 
+              : ''
+          }`}
+          onClick={handleTimerClick}
+        >
           <div className="text-center">
-            <div className="text-5xl font-mono font-bold mb-2">
+            <div className="text-5xl font-mono font-bold mb-2 text-white drop-shadow-lg">
               {formatTime(timerState.timeRemaining)}
             </div>
-            <div className="text-lg font-medium">
+            <div className="text-lg font-medium text-white drop-shadow-md">
               {getPhaseText()}
             </div>
             {timerState.timeRemaining <= 3 && timerState.timeRemaining > 0 && (timerState.currentPhase === 'workout' || timerState.currentPhase === 'rest' || timerState.currentPhase === 'setrest') && (
@@ -312,10 +339,10 @@ export default function SimpleHome() {
 
         {/* Progress Info */}
         <div className="text-center mb-8">
-          <div className="text-lg mb-2">
+          <div className="text-lg mb-2 text-white font-medium">
             Round {timerState.currentRound} of {settings.roundsPerSet}
           </div>
-          <div className="text-lg">
+          <div className="text-lg text-white font-medium">
             Set {timerState.currentSet} of {settings.numberOfSets}
           </div>
         </div>
