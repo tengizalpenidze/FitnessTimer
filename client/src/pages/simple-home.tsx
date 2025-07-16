@@ -77,40 +77,65 @@ export default function SimpleHome() {
 
   // Audio functions
   const playBeep = useCallback(async () => {
-    if (!settings.audioEnabled || !audioContextRef.current) return;
+    if (!settings.audioEnabled) return;
     
     try {
-      // Ensure audio context is running
-      if (audioContextRef.current.state === 'suspended') {
-        await audioContextRef.current.resume();
+      // Method 1: Try Web Audio API first
+      if (audioContextRef.current) {
+        // Resume if suspended
+        if (audioContextRef.current.state === 'suspended') {
+          await audioContextRef.current.resume();
+        }
+        
+        // Force restart if interrupted
+        if (audioContextRef.current.state === 'interrupted') {
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+          await audioContextRef.current.resume();
+        }
+        
+        if (audioContextRef.current.state === 'running') {
+          const oscillator = audioContextRef.current.createOscillator();
+          const gainNode = audioContextRef.current.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContextRef.current.destination);
+          
+          // Create a sharp, audible beep
+          oscillator.frequency.setValueAtTime(880, audioContextRef.current.currentTime); // A5 note
+          oscillator.type = 'square';
+          
+          // Strong, clear volume envelope
+          gainNode.gain.setValueAtTime(0, audioContextRef.current.currentTime);
+          gainNode.gain.linearRampToValueAtTime(0.5, audioContextRef.current.currentTime + 0.01);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, audioContextRef.current.currentTime + 0.15);
+          
+          oscillator.start(audioContextRef.current.currentTime);
+          oscillator.stop(audioContextRef.current.currentTime + 0.15);
+          
+          console.log('Web Audio beep played at:', new Date().toLocaleTimeString(), 'State:', audioContextRef.current.state);
+          return; // Success, exit early
+        }
       }
       
-      if (audioContextRef.current.state !== 'running') {
-        console.log('Audio context not running:', audioContextRef.current.state);
-        return;
+      // Method 2: Fallback to simple audio data URL beep
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.15, audioContext.sampleRate);
+      const data = buffer.getChannelData(0);
+      
+      // Generate beep tone
+      for (let i = 0; i < data.length; i++) {
+        data[i] = Math.sin(880 * 2 * Math.PI * i / audioContext.sampleRate) * 0.5;
       }
       
-      const oscillator = audioContextRef.current.createOscillator();
-      const gainNode = audioContextRef.current.createGain();
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContext.destination);
+      source.start();
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContextRef.current.destination);
+      console.log('Fallback beep played at:', new Date().toLocaleTimeString());
       
-      // Create a more audible beep with higher frequency
-      oscillator.frequency.setValueAtTime(1000, audioContextRef.current.currentTime);
-      oscillator.type = 'sine'; // Smoother but still audible
-      
-      // Clear volume envelope
-      gainNode.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.3, audioContextRef.current.currentTime + 0.1);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, audioContextRef.current.currentTime + 0.4);
-      
-      oscillator.start(audioContextRef.current.currentTime);
-      oscillator.stop(audioContextRef.current.currentTime + 0.4);
-      
-      console.log('Beep played at:', new Date().toLocaleTimeString(), 'Audio state:', audioContextRef.current.state);
     } catch (error) {
-      console.log('Audio playback failed:', error);
+      console.log('All audio methods failed:', error);
     }
   }, [settings.audioEnabled]);
 
