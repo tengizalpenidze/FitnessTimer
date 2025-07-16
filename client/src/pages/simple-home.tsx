@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { SimpleButton } from "../components/simple-button";
+import { Slider } from "../components/slider";
 
 interface TimerSettings {
   workoutTime: number;
@@ -52,38 +53,66 @@ export default function SimpleHome() {
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [audioInitialized, setAudioInitialized] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   // Save settings to localStorage
   useEffect(() => {
     localStorage.setItem('hiitSettings', JSON.stringify(settings));
   }, [settings]);
 
+  // Initialize audio context with user interaction
+  const initializeAudio = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
+    }
+    setAudioInitialized(true);
+  }, []);
+
   // Audio functions
   const playBeep = useCallback(() => {
-    if (!settings.audioEnabled) return;
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
+    if (!settings.audioEnabled || !audioInitialized || !audioContextRef.current) return;
     
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-    
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.5);
-  }, [settings.audioEnabled]);
+    try {
+      const oscillator = audioContextRef.current.createOscillator();
+      const gainNode = audioContextRef.current.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContextRef.current.destination);
+      
+      oscillator.frequency.setValueAtTime(800, audioContextRef.current.currentTime);
+      gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.5);
+      
+      oscillator.start();
+      oscillator.stop(audioContextRef.current.currentTime + 0.5);
+    } catch (error) {
+      console.log('Audio playback failed:', error);
+    }
+  }, [settings.audioEnabled, audioInitialized]);
 
   const speak = useCallback((text: string) => {
-    if (!settings.audioEnabled || !('speechSynthesis' in window)) return;
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    utterance.volume = 0.8;
-    speechSynthesis.speak(utterance);
-  }, [settings.audioEnabled]);
+    if (!settings.audioEnabled || !audioInitialized) return;
+    
+    try {
+      // Cancel any ongoing speech
+      if ('speechSynthesis' in window) {
+        speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1;
+        utterance.volume = 0.8;
+        utterance.pitch = 1;
+        speechSynthesis.speak(utterance);
+      }
+    } catch (error) {
+      console.log('Speech synthesis failed:', error);
+    }
+  }, [settings.audioEnabled, audioInitialized]);
 
   // Timer logic
   const advancePhase = useCallback((currentState: TimerState): TimerState => {
@@ -192,6 +221,10 @@ export default function SimpleHome() {
   }, [timerState.isRunning, timerState.isPaused, advancePhase, playBeep]);
 
   const startTimer = () => {
+    // Initialize audio on first user interaction
+    if (!audioInitialized) {
+      initializeAudio();
+    }
     setTimerState(prev => ({ ...prev, isRunning: true, isPaused: false }));
   };
 
@@ -292,69 +325,100 @@ export default function SimpleHome() {
         {/* Settings Panel */}
         {isSettingsOpen && (
           <div className="mt-8 p-6 bg-gray-800 rounded-lg">
-            <h3 className="text-xl font-bold mb-4">Settings</h3>
+            <h3 className="text-xl font-bold mb-6">Settings</h3>
             
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Workout Time (seconds)</label>
-                <input
-                  type="number"
-                  value={settings.workoutTime}
-                  onChange={(e) => setSettings(prev => ({ ...prev, workoutTime: parseInt(e.target.value) || 40 }))}
-                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                />
+            <div className="space-y-6">
+              <Slider
+                label="Workout Time (seconds)"
+                value={settings.workoutTime}
+                onChange={(value) => setSettings(prev => ({ ...prev, workoutTime: value }))}
+                min={10}
+                max={180}
+                step={5}
+              />
+              
+              <Slider
+                label="Rest Time (seconds)"
+                value={settings.restTime}
+                onChange={(value) => setSettings(prev => ({ ...prev, restTime: value }))}
+                min={5}
+                max={120}
+                step={5}
+              />
+              
+              <Slider
+                label="Rounds per Set"
+                value={settings.roundsPerSet}
+                onChange={(value) => setSettings(prev => ({ ...prev, roundsPerSet: value }))}
+                min={1}
+                max={20}
+                step={1}
+              />
+              
+              <Slider
+                label="Number of Sets"
+                value={settings.numberOfSets}
+                onChange={(value) => setSettings(prev => ({ ...prev, numberOfSets: value }))}
+                min={1}
+                max={10}
+                step={1}
+              />
+              
+              <Slider
+                label="Set Rest Time (seconds)"
+                value={settings.setRestTime}
+                onChange={(value) => setSettings(prev => ({ ...prev, setRestTime: value }))}
+                min={30}
+                max={300}
+                step={10}
+              />
+              
+              <div className="flex items-center justify-between pt-4">
+                <label htmlFor="audioEnabled" className="text-sm font-medium text-gray-300">Enable Audio</label>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="audioEnabled"
+                    checked={settings.audioEnabled}
+                    onChange={(e) => setSettings(prev => ({ ...prev, audioEnabled: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium mb-1">Rest Time (seconds)</label>
-                <input
-                  type="number"
-                  value={settings.restTime}
-                  onChange={(e) => setSettings(prev => ({ ...prev, restTime: parseInt(e.target.value) || 20 }))}
-                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                />
-              </div>
+              {settings.audioEnabled && (
+                <div className="flex gap-2 pt-2">
+                  <SimpleButton 
+                    onClick={() => {
+                      if (!audioInitialized) initializeAudio();
+                      playBeep();
+                    }}
+                    variant="outline"
+                    className="text-xs px-3 py-1"
+                  >
+                    Test Beep
+                  </SimpleButton>
+                  <SimpleButton 
+                    onClick={() => {
+                      if (!audioInitialized) initializeAudio();
+                      speak('Test audio working');
+                    }}
+                    variant="outline"
+                    className="text-xs px-3 py-1"
+                  >
+                    Test Voice
+                  </SimpleButton>
+                </div>
+              )}
               
-              <div>
-                <label className="block text-sm font-medium mb-1">Rounds per Set</label>
-                <input
-                  type="number"
-                  value={settings.roundsPerSet}
-                  onChange={(e) => setSettings(prev => ({ ...prev, roundsPerSet: parseInt(e.target.value) || 5 }))}
-                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">Number of Sets</label>
-                <input
-                  type="number"
-                  value={settings.numberOfSets}
-                  onChange={(e) => setSettings(prev => ({ ...prev, numberOfSets: parseInt(e.target.value) || 5 }))}
-                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">Set Rest Time (seconds)</label>
-                <input
-                  type="number"
-                  value={settings.setRestTime}
-                  onChange={(e) => setSettings(prev => ({ ...prev, setRestTime: parseInt(e.target.value) || 60 }))}
-                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-              
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="audioEnabled"
-                  checked={settings.audioEnabled}
-                  onChange={(e) => setSettings(prev => ({ ...prev, audioEnabled: e.target.checked }))}
-                  className="mr-2"
-                />
-                <label htmlFor="audioEnabled" className="text-sm font-medium">Enable Audio</label>
-              </div>
+              {!audioInitialized && settings.audioEnabled && (
+                <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-3 mt-4">
+                  <p className="text-sm text-yellow-200">
+                    🔊 Audio will be enabled when you start the timer or test audio (browser requirement)
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
