@@ -75,67 +75,78 @@ export default function SimpleHome() {
     setAudioInitialized(true);
   }, []);
 
-  // Audio functions
+  // Audio functions - Creating a distinctive double-beep sound
   const playBeep = useCallback(async () => {
     if (!settings.audioEnabled) return;
     
     try {
-      // Method 1: Try Web Audio API first
-      if (audioContextRef.current) {
-        // Resume if suspended
-        if (audioContextRef.current.state === 'suspended') {
-          await audioContextRef.current.resume();
-        }
-        
-        // Force restart if interrupted
-        if (audioContextRef.current.state === 'interrupted') {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-          await audioContextRef.current.resume();
-        }
-        
-        if (audioContextRef.current.state === 'running') {
-          const oscillator = audioContextRef.current.createOscillator();
-          const gainNode = audioContextRef.current.createGain();
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      // Ensure audio context is running
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+      
+      if (audioContextRef.current.state === 'interrupted') {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        await audioContextRef.current.resume();
+      }
+      
+      if (audioContextRef.current.state === 'running') {
+        // Create a distinctive double-beep: high-low tone
+        const playTone = (frequency: number, startTime: number, duration: number) => {
+          const oscillator = audioContextRef.current!.createOscillator();
+          const gainNode = audioContextRef.current!.createGain();
           
           oscillator.connect(gainNode);
-          gainNode.connect(audioContextRef.current.destination);
+          gainNode.connect(audioContextRef.current!.destination);
           
-          // Create a sharp, audible beep
-          oscillator.frequency.setValueAtTime(880, audioContextRef.current.currentTime); // A5 note
-          oscillator.type = 'square';
+          oscillator.frequency.setValueAtTime(frequency, startTime);
+          oscillator.type = 'sine'; // Cleaner sine wave
           
-          // Strong, clear volume envelope
-          gainNode.gain.setValueAtTime(0, audioContextRef.current.currentTime);
-          gainNode.gain.linearRampToValueAtTime(0.5, audioContextRef.current.currentTime + 0.01);
-          gainNode.gain.exponentialRampToValueAtTime(0.001, audioContextRef.current.currentTime + 0.15);
+          // Sharp attack and decay
+          gainNode.gain.setValueAtTime(0, startTime);
+          gainNode.gain.linearRampToValueAtTime(0.6, startTime + 0.02);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
           
-          oscillator.start(audioContextRef.current.currentTime);
-          oscillator.stop(audioContextRef.current.currentTime + 0.15);
-          
-          console.log('Web Audio beep played at:', new Date().toLocaleTimeString(), 'State:', audioContextRef.current.state);
-          return; // Success, exit early
+          oscillator.start(startTime);
+          oscillator.stop(startTime + duration);
+        };
+        
+        const now = audioContextRef.current.currentTime;
+        playTone(1000, now, 0.1);        // High beep
+        playTone(800, now + 0.12, 0.1);  // Lower beep
+        
+        console.log('Double beep played at:', new Date().toLocaleTimeString());
+        return;
+      }
+      
+      // Fallback method with click sound
+      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const buffer = context.createBuffer(1, context.sampleRate * 0.2, context.sampleRate);
+      const data = buffer.getChannelData(0);
+      
+      // Generate a click-beep pattern
+      for (let i = 0; i < data.length; i++) {
+        const t = i / context.sampleRate;
+        if (t < 0.1) {
+          data[i] = Math.sin(1200 * 2 * Math.PI * t) * Math.exp(-t * 20) * 0.7;
+        } else if (t > 0.12 && t < 0.2) {
+          data[i] = Math.sin(800 * 2 * Math.PI * (t - 0.12)) * Math.exp(-(t - 0.12) * 20) * 0.7;
         }
       }
       
-      // Method 2: Fallback to simple audio data URL beep
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.15, audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
-      
-      // Generate beep tone
-      for (let i = 0; i < data.length; i++) {
-        data[i] = Math.sin(880 * 2 * Math.PI * i / audioContext.sampleRate) * 0.5;
-      }
-      
-      const source = audioContext.createBufferSource();
+      const source = context.createBufferSource();
       source.buffer = buffer;
-      source.connect(audioContext.destination);
+      source.connect(context.destination);
       source.start();
       
-      console.log('Fallback beep played at:', new Date().toLocaleTimeString());
+      console.log('Fallback double-beep played');
       
     } catch (error) {
-      console.log('All audio methods failed:', error);
+      console.log('Audio beep failed:', error);
     }
   }, [settings.audioEnabled]);
 
