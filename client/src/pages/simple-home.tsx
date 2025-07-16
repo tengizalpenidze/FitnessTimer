@@ -78,18 +78,30 @@ export default function SimpleHome() {
     if (!settings.audioEnabled || !audioInitialized || !audioContextRef.current) return;
     
     try {
+      // Resume audio context if suspended
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+      
       const oscillator = audioContextRef.current.createOscillator();
       const gainNode = audioContextRef.current.createGain();
       
       oscillator.connect(gainNode);
       gainNode.connect(audioContextRef.current.destination);
       
+      // Create a sharper, more audible beep
       oscillator.frequency.setValueAtTime(800, audioContextRef.current.currentTime);
-      gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.5);
+      oscillator.type = 'square'; // More pronounced sound
       
-      oscillator.start();
-      oscillator.stop(audioContextRef.current.currentTime + 0.5);
+      // Sharp attack and decay for clear beep
+      gainNode.gain.setValueAtTime(0, audioContextRef.current.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.5, audioContextRef.current.currentTime + 0.05);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.3);
+      
+      oscillator.start(audioContextRef.current.currentTime);
+      oscillator.stop(audioContextRef.current.currentTime + 0.3);
+      
+      console.log('Beep played at:', new Date().toLocaleTimeString());
     } catch (error) {
       console.log('Audio playback failed:', error);
     }
@@ -190,18 +202,21 @@ export default function SimpleHome() {
     if (timerState.isRunning && !timerState.isPaused) {
       intervalRef.current = setInterval(() => {
         setTimerState(prev => {
-          if (prev.timeRemaining <= 1) {
-            return advancePhase(prev);
+          const newTimeRemaining = prev.timeRemaining - 1;
+          
+          // Play beep for last 3 seconds (when countdown shows 3, 2, 1)
+          if ((prev.currentPhase === 'workout' || prev.currentPhase === 'rest' || prev.currentPhase === 'setrest') && 
+              (newTimeRemaining === 2 || newTimeRemaining === 1 || newTimeRemaining === 0)) {
+            setTimeout(() => playBeep(), 100); // Small delay to ensure audio context is ready
           }
           
-          // Play beep for last 3 seconds
-          if (prev.timeRemaining <= 3 && prev.timeRemaining > 0) {
-            playBeep();
+          if (newTimeRemaining <= 0) {
+            return advancePhase({ ...prev, timeRemaining: 0 });
           }
           
           return {
             ...prev,
-            timeRemaining: prev.timeRemaining - 1,
+            timeRemaining: newTimeRemaining,
           };
         });
       }, 1000);
@@ -275,7 +290,11 @@ export default function SimpleHome() {
         </div>
 
         {/* Timer Display */}
-        <div className={`relative w-80 h-80 mx-auto mb-8 rounded-full ${getPhaseColor()} flex items-center justify-center transition-colors duration-300`}>
+        <div className={`relative w-80 h-80 mx-auto mb-8 rounded-full ${getPhaseColor()} flex items-center justify-center transition-colors duration-300 ${
+          timerState.timeRemaining <= 3 && timerState.timeRemaining > 0 && (timerState.currentPhase === 'workout' || timerState.currentPhase === 'rest' || timerState.currentPhase === 'setrest') 
+            ? 'ring-4 ring-red-500 ring-opacity-75 animate-pulse' 
+            : ''
+        }`}>
           <div className="text-center">
             <div className="text-5xl font-mono font-bold mb-2">
               {formatTime(timerState.timeRemaining)}
@@ -283,6 +302,11 @@ export default function SimpleHome() {
             <div className="text-lg font-medium">
               {getPhaseText()}
             </div>
+            {timerState.timeRemaining <= 3 && timerState.timeRemaining > 0 && (timerState.currentPhase === 'workout' || timerState.currentPhase === 'rest' || timerState.currentPhase === 'setrest') && (
+              <div className="text-xs text-red-200 mt-1">
+                🔊 Beeping
+              </div>
+            )}
           </div>
         </div>
 
