@@ -1,69 +1,96 @@
+// Service Worker for HIIT Timer App - Offline Support
 const CACHE_NAME = 'just-hiit-v1';
-const urlsToCache = [
+const STATIC_ASSETS = [
   '/',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
+  '/index.html',
+  '/manifest.json',
+  '/src/main.tsx',
+  '/src/index.css',
+  '/src/App.tsx'
 ];
 
+// Install event - cache static assets
 self.addEventListener('install', (event) => {
+  console.log('[SW] Installing service worker');
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(urlsToCache))
+      .then((cache) => {
+        console.log('[SW] Caching static assets');
+        return cache.addAll(STATIC_ASSETS);
+      })
+      .catch((error) => {
+        console.log('[SW] Cache failed:', error);
+      })
   );
+  self.skipWaiting();
 });
 
+// Activate event - clean up old caches
+self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating service worker');
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('[SW] Deleting old cache:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+  self.clients.claim();
+});
+
+// Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
+  // Only handle GET requests
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // Return cached version or fetch from network
-        return response || fetch(event.request);
+        // Return cached version if available
+        if (response) {
+          return response;
+        }
+
+        // Fallback to network
+        return fetch(event.request)
+          .then((response) => {
+            // Don't cache non-successful responses
+            if (!response || response.status !== 200 || response.type !== 'basic') {
+              return response;
+            }
+
+            // Clone the response for caching
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME)
+              .then((cache) => {
+                cache.put(event.request, responseToCache);
+              });
+
+            return response;
+          })
+          .catch(() => {
+            // If both cache and network fail, return offline page for navigation requests
+            if (event.request.destination === 'document') {
+              return caches.match('/index.html');
+            }
+          });
       })
   );
 });
 
-// Handle background timer messages
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'TIMER_TICK') {
-    // Keep the service worker alive during timer operation
-    event.waitUntil(
-      self.registration.showNotification('HIIT Timer', {
-        body: event.data.message,
-        icon: '/icon-192x192.png',
-        badge: '/badge-72x72.png',
-        silent: true,
-        actions: [
-          {
-            action: 'stop',
-            title: 'Stop Timer'
-          }
-        ]
-      })
-    );
-  }
+// Background sync for future enhancements
+self.addEventListener('sync', (event) => {
+  console.log('[SW] Background sync triggered');
 });
 
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  
-  if (event.action === 'stop') {
-    // Send message back to main thread to stop timer
-    event.waitUntil(
-      self.clients.matchAll().then((clients) => {
-        clients.forEach((client) => {
-          client.postMessage({ type: 'STOP_TIMER' });
-        });
-      })
-    );
-  } else {
-    // Focus the app
-    event.waitUntil(
-      self.clients.matchAll({ type: 'window' }).then((clients) => {
-        if (clients.length > 0) {
-          return clients[0].focus();
-        }
-        return self.clients.openWindow('/');
-      })
-    );
-  }
+// Push notifications for future enhancements
+self.addEventListener('push', (event) => {
+  console.log('[SW] Push notification received');
 });
