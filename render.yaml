@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: just-hiit
+    env: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        fromService:
+          type: web
+          name: just-hiit
+          property: port
+    autoDeploy: false

@@ -93,10 +93,8 @@ app.use((req, res, next) => {
     await setupVite(app, server);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
+  // Use environment port for production (Render) or default to 5000 for development
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
   const serverInstance = server.listen({
     port,
     host: "0.0.0.0",
