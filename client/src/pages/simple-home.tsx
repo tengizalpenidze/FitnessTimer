@@ -75,16 +75,16 @@ export default function SimpleHome() {
     setAudioInitialized(true);
   }, []);
 
-  // Audio functions - Creating a distinctive double-beep sound
+  // Audio functions - Multi-method beep system for maximum reliability
   const playBeep = useCallback(async () => {
     if (!settings.audioEnabled) return;
     
     try {
+      // Method 1: Try Web Audio API (most reliable)
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       
-      // Ensure audio context is running
       if (audioContextRef.current.state === 'suspended') {
         await audioContextRef.current.resume();
       }
@@ -95,7 +95,6 @@ export default function SimpleHome() {
       }
       
       if (audioContextRef.current.state === 'running') {
-        // Create a distinctive double-beep: high-low tone
         const playTone = (frequency: number, startTime: number, duration: number) => {
           const oscillator = audioContextRef.current!.createOscillator();
           const gainNode = audioContextRef.current!.createGain();
@@ -104,9 +103,8 @@ export default function SimpleHome() {
           gainNode.connect(audioContextRef.current!.destination);
           
           oscillator.frequency.setValueAtTime(frequency, startTime);
-          oscillator.type = 'sine'; // Cleaner sine wave
+          oscillator.type = 'sine';
           
-          // Sharp attack and decay
           gainNode.gain.setValueAtTime(0, startTime);
           gainNode.gain.linearRampToValueAtTime(0.6, startTime + 0.02);
           gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
@@ -119,16 +117,28 @@ export default function SimpleHome() {
         playTone(1000, now, 0.1);        // High beep
         playTone(800, now + 0.12, 0.1);  // Lower beep
         
-        console.log('Double beep played at:', new Date().toLocaleTimeString());
+        console.log('Web Audio beep played');
         return;
       }
       
-      // Fallback method with click sound
+      // Method 2: HTML5 Audio with data URL fallback
+      try {
+        const beepDataUrl = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMeAz2M0/LLeSsFJXfD7N2UQwoUW7Pp68hLFfI=";
+        
+        const audio = new Audio(beepDataUrl);
+        audio.volume = 0.6;
+        await audio.play();
+        console.log('HTML5 Audio beep played');
+        return;
+      } catch (audioError) {
+        console.log('HTML5 Audio failed:', audioError);
+      }
+      
+      // Method 3: Programmatic buffer generation
       const context = new (window.AudioContext || (window as any).webkitAudioContext)();
       const buffer = context.createBuffer(1, context.sampleRate * 0.2, context.sampleRate);
       const data = buffer.getChannelData(0);
       
-      // Generate a click-beep pattern
       for (let i = 0; i < data.length; i++) {
         const t = i / context.sampleRate;
         if (t < 0.1) {
@@ -143,31 +153,48 @@ export default function SimpleHome() {
       source.connect(context.destination);
       source.start();
       
-      console.log('Fallback double-beep played');
+      console.log('Buffer generation beep played');
       
     } catch (error) {
-      console.log('Audio beep failed:', error);
+      console.log('All beep methods failed:', error);
     }
   }, [settings.audioEnabled]);
 
   const speak = useCallback((text: string) => {
-    if (!settings.audioEnabled || !audioInitialized) return;
+    if (!settings.audioEnabled) return;
     
     try {
-      // Cancel any ongoing speech
       if ('speechSynthesis' in window) {
+        // Cancel any ongoing speech
         speechSynthesis.cancel();
         
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1;
-        utterance.volume = 0.8;
-        utterance.pitch = 1;
-        speechSynthesis.speak(utterance);
+        // Wait a brief moment for cancellation to complete
+        setTimeout(() => {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = 1.2;
+          utterance.volume = 0.9;
+          utterance.pitch = 1;
+          utterance.lang = 'en-US';
+          
+          // Error handling for speech synthesis
+          utterance.onerror = (event) => {
+            console.log('Speech synthesis error:', event.error);
+          };
+          
+          utterance.onend = () => {
+            console.log('Speech completed:', text);
+          };
+          
+          speechSynthesis.speak(utterance);
+          console.log('Speaking:', text);
+        }, 50);
+      } else {
+        console.log('Speech synthesis not supported');
       }
     } catch (error) {
       console.log('Speech synthesis failed:', error);
     }
-  }, [settings.audioEnabled, audioInitialized]);
+  }, [settings.audioEnabled]);
 
   // Timer logic
   const advancePhase = useCallback((currentState: TimerState): TimerState => {
