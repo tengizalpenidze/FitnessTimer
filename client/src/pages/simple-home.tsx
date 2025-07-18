@@ -64,201 +64,74 @@ export default function SimpleHome() {
     localStorage.setItem('hiitSettings', JSON.stringify(settings));
   }, [settings]);
 
-  // Initialize audio context with comprehensive diagnostics
+  // Simple audio initialization
   const initializeAudio = useCallback(async () => {
-    console.log('🎵 Initializing audio system...');
-    
     try {
-      // Test browser audio support
-      console.log('Browser support checks:');
-      console.log('- AudioContext:', !!(window.AudioContext || (window as any).webkitAudioContext));
-      console.log('- Speech Synthesis:', 'speechSynthesis' in window);
-      console.log('- HTML5 Audio:', !!window.Audio);
-      
-      // Initialize audio context
       if (!audioContextRef.current) {
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioContextClass) {
-          audioContextRef.current = new AudioContextClass();
-          console.log('✅ AudioContext created, state:', audioContextRef.current.state);
-        } else {
-          console.log('❌ AudioContext not supported');
-          return;
-        }
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
-      
-      // Resume audio context if suspended
       if (audioContextRef.current.state === 'suspended') {
-        console.log('🔄 Resuming suspended audio context...');
         await audioContextRef.current.resume();
-        console.log('✅ Audio context resumed, state:', audioContextRef.current.state);
       }
-      
-      // Test a simple beep to verify audio works
-      if (audioContextRef.current.state === 'running') {
-        console.log('🔊 Testing audio with simple beep...');
-        const testOscillator = audioContextRef.current.createOscillator();
-        const testGain = audioContextRef.current.createGain();
-        
-        testOscillator.connect(testGain);
-        testGain.connect(audioContextRef.current.destination);
-        
-        testOscillator.frequency.setValueAtTime(800, audioContextRef.current.currentTime);
-        testOscillator.type = 'sine';
-        
-        testGain.gain.setValueAtTime(0, audioContextRef.current.currentTime);
-        testGain.gain.linearRampToValueAtTime(0.3, audioContextRef.current.currentTime + 0.01);
-        testGain.gain.exponentialRampToValueAtTime(0.001, audioContextRef.current.currentTime + 0.1);
-        
-        testOscillator.start(audioContextRef.current.currentTime);
-        testOscillator.stop(audioContextRef.current.currentTime + 0.1);
-        
-        console.log('✅ Test beep sent to audio destination');
-      }
-      
       setAudioInitialized(true);
-      console.log('✅ Audio system initialization complete');
-      
     } catch (error) {
-      console.log('❌ Audio initialization failed:', error);
-      setAudioInitialized(false);
+      console.log('Audio initialization failed:', error);
     }
   }, []);
 
-  // Audio functions - Multi-method beep system for maximum reliability
+  // Simple, reliable beep function
   const playBeep = useCallback(async () => {
     if (!settings.audioEnabled) return;
     
     try {
-      // Method 1: Try Web Audio API (most reliable)
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
+      // Initialize audio if needed
+      await initializeAudio();
       
-      if (audioContextRef.current.state === 'suspended') {
-        await audioContextRef.current.resume();
-      }
-      
-      if (audioContextRef.current.state === 'interrupted') {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        await audioContextRef.current.resume();
-      }
-      
-      if (audioContextRef.current.state === 'running') {
-        const playTone = (frequency: number, startTime: number, duration: number) => {
-          const oscillator = audioContextRef.current!.createOscillator();
-          const gainNode = audioContextRef.current!.createGain();
-          
-          oscillator.connect(gainNode);
-          gainNode.connect(audioContextRef.current!.destination);
-          
-          oscillator.frequency.setValueAtTime(frequency, startTime);
-          oscillator.type = 'sine';
-          
-          gainNode.gain.setValueAtTime(0, startTime);
-          gainNode.gain.linearRampToValueAtTime(0.6, startTime + 0.02);
-          gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-          
-          oscillator.start(startTime);
-          oscillator.stop(startTime + duration);
-        };
-        
-        const now = audioContextRef.current.currentTime;
-        playTone(1000, now, 0.1);        // High beep
-        playTone(800, now + 0.12, 0.1);  // Lower beep
-        
-        console.log('✅ Web Audio double-beep played successfully');
+      if (!audioContextRef.current || audioContextRef.current.state !== 'running') {
+        // Try HTML5 audio fallback
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMeAz2M0/LLeSsFJXfD7N2UQwoUW7Pp68hLFfI=');
+        audio.volume = 0.5;
+        await audio.play();
         return;
       }
       
-      console.log('⚠️ Web Audio API not running, trying fallback methods...');
+      // Web Audio API beep
+      const oscillator = audioContextRef.current.createOscillator();
+      const gainNode = audioContextRef.current.createGain();
       
-      // Method 2: HTML5 Audio with data URL fallback
-      try {
-        console.log('🔄 Trying HTML5 Audio fallback...');
-        const beepDataUrl = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMeAz2M0/LLeSsFJXfD7N2UQwoUW7Pp68hLFfI=";
-        
-        const audio = new Audio(beepDataUrl);
-        audio.volume = 0.8;
-        
-        // Check if audio can load
-        audio.addEventListener('canplaythrough', () => {
-          console.log('✅ HTML5 Audio loaded successfully');
-        });
-        
-        audio.addEventListener('error', (e) => {
-          console.log('❌ HTML5 Audio error:', e);
-        });
-        
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          await playPromise;
-          console.log('✅ HTML5 Audio beep played successfully');
-        }
-        return;
-      } catch (audioError) {
-        console.log('❌ HTML5 Audio failed:', audioError);
-      }
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContextRef.current.destination);
       
-      // Method 3: Programmatic buffer generation
-      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const buffer = context.createBuffer(1, context.sampleRate * 0.2, context.sampleRate);
-      const data = buffer.getChannelData(0);
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
       
-      for (let i = 0; i < data.length; i++) {
-        const t = i / context.sampleRate;
-        if (t < 0.1) {
-          data[i] = Math.sin(1200 * 2 * Math.PI * t) * Math.exp(-t * 20) * 0.7;
-        } else if (t > 0.12 && t < 0.2) {
-          data[i] = Math.sin(800 * 2 * Math.PI * (t - 0.12)) * Math.exp(-(t - 0.12) * 20) * 0.7;
-        }
-      }
+      gainNode.gain.setValueAtTime(0, audioContextRef.current.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.3, audioContextRef.current.currentTime + 0.01);
+      gainNode.gain.linearRampToValueAtTime(0, audioContextRef.current.currentTime + 0.15);
       
-      const source = context.createBufferSource();
-      source.buffer = buffer;
-      source.connect(context.destination);
-      source.start();
-      
-      console.log('Buffer generation beep played');
+      oscillator.start(audioContextRef.current.currentTime);
+      oscillator.stop(audioContextRef.current.currentTime + 0.15);
       
     } catch (error) {
-      console.log('All beep methods failed:', error);
+      console.log('Beep failed:', error);
     }
-  }, [settings.audioEnabled]);
+  }, [settings.audioEnabled, initializeAudio]);
 
+  // Simple, direct voice function
   const speak = useCallback((text: string) => {
-    if (!settings.audioEnabled) return;
+    if (!settings.audioEnabled || !('speechSynthesis' in window)) return;
     
     try {
-      if ('speechSynthesis' in window) {
-        // Cancel any ongoing speech
-        speechSynthesis.cancel();
-        
-        // Wait a brief moment for cancellation to complete
-        setTimeout(() => {
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.rate = 1.2;
-          utterance.volume = 0.9;
-          utterance.pitch = 1;
-          utterance.lang = 'en-US';
-          
-          // Error handling for speech synthesis
-          utterance.onerror = (event) => {
-            console.log('Speech synthesis error:', event.error);
-          };
-          
-          utterance.onend = () => {
-            console.log('Speech completed:', text);
-          };
-          
-          speechSynthesis.speak(utterance);
-          console.log('Speaking:', text);
-        }, 50);
-      } else {
-        console.log('Speech synthesis not supported');
-      }
+      speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.volume = 1.0;
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      
+      speechSynthesis.speak(utterance);
     } catch (error) {
-      console.log('Speech synthesis failed:', error);
+      console.log('Voice failed:', error);
     }
   }, [settings.audioEnabled]);
 
@@ -491,169 +364,21 @@ export default function SimpleHome() {
           </SimpleButton>
         </div>
 
-        {/* Audio Debug Controls */}
+        {/* Simple Audio Test */}
         <div className="border border-gray-600 rounded-lg p-4 mb-6">
-          <h3 className="text-lg font-semibold mb-3 text-white">Audio Test Controls</h3>
-          <div className="flex flex-wrap gap-2 mb-4">
-            <SimpleButton 
-              onClick={async () => {
-                console.log('=== LOUD BEEP TEST START ===');
-                // Create a very loud, obvious beep
-                try {
-                  const ctx = audioContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
-                  if (ctx.state === 'suspended') await ctx.resume();
-                  
-                  const osc = ctx.createOscillator();
-                  const gain = ctx.createGain();
-                  
-                  osc.connect(gain);
-                  gain.connect(ctx.destination);
-                  
-                  osc.frequency.setValueAtTime(1000, ctx.currentTime);
-                  osc.type = 'square'; // Harsher sound
-                  
-                  gain.gain.setValueAtTime(0, ctx.currentTime);
-                  gain.gain.linearRampToValueAtTime(0.9, ctx.currentTime + 0.05); // Very loud
-                  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-                  
-                  osc.start(ctx.currentTime);
-                  osc.stop(ctx.currentTime + 0.5);
-                  
-                  console.log('✅ LOUD beep sent - should be very audible');
-                } catch (e) {
-                  console.log('❌ Loud beep failed:', e);
-                }
-              }} 
-              variant="secondary" 
-              size="sm"
-            >
-              🔊 LOUD Test
+          <h3 className="text-lg font-semibold mb-3 text-white">Audio Test</h3>
+          <div className="flex gap-3 mb-3">
+            <SimpleButton onClick={playBeep} variant="secondary" size="sm">
+              Test Beep
             </SimpleButton>
-            <SimpleButton 
-              onClick={async () => {
-                console.log('=== FREQUENCY SWEEP TEST ===');
-                try {
-                  const ctx = audioContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
-                  if (ctx.state === 'suspended') await ctx.resume();
-                  
-                  const osc = ctx.createOscillator();
-                  const gain = ctx.createGain();
-                  
-                  osc.connect(gain);
-                  gain.connect(ctx.destination);
-                  
-                  // Sweep from 200Hz to 2000Hz
-                  osc.frequency.setValueAtTime(200, ctx.currentTime);
-                  osc.frequency.exponentialRampToValueAtTime(2000, ctx.currentTime + 2);
-                  osc.type = 'sawtooth';
-                  
-                  gain.gain.setValueAtTime(0.7, ctx.currentTime);
-                  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2);
-                  
-                  osc.start(ctx.currentTime);
-                  osc.stop(ctx.currentTime + 2);
-                  
-                  console.log('✅ Frequency sweep sent - should hear rising tone');
-                } catch (e) {
-                  console.log('❌ Frequency sweep failed:', e);
-                }
-              }} 
-              variant="secondary" 
-              size="sm"
-            >
-              🎵 Freq Sweep
-            </SimpleButton>
-            <SimpleButton 
-              onClick={async () => {
-                console.log('=== HTML5 AUDIO TEST ===');
-                try {
-                  // Create a simple click sound
-                  const audio = new Audio();
-                  audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMeAz2M0/LLeSsFJXfD7N2UQwoUW7Pp68hLFfI=';
-                  audio.volume = 1.0; // Maximum volume
-                  
-                  // Force load and play
-                  audio.load();
-                  const playPromise = audio.play();
-                  if (playPromise) {
-                    await playPromise;
-                    console.log('✅ HTML5 audio should have played');
-                  }
-                } catch (e) {
-                  console.log('❌ HTML5 audio failed:', e);
-                }
-              }} 
-              variant="secondary" 
-              size="sm"
-            >
-              🎯 HTML5 Test
-            </SimpleButton>
-          </div>
-          <div className="flex flex-wrap gap-2 mb-4">
-            <SimpleButton 
-              onClick={() => {
-                console.log('=== VOICE VOLUME TEST ===');
-                if ('speechSynthesis' in window) {
-                  speechSynthesis.cancel();
-                  setTimeout(() => {
-                    const utterance = new SpeechSynthesisUtterance('LOUD TEST VOICE ANNOUNCEMENT');
-                    utterance.rate = 0.8;
-                    utterance.volume = 1.0; // Maximum volume
-                    utterance.pitch = 1.0;
-                    utterance.lang = 'en-US';
-                    
-                    utterance.onstart = () => console.log('✅ Speech started');
-                    utterance.onend = () => console.log('✅ Speech ended');
-                    utterance.onerror = (e) => console.log('❌ Speech error:', e);
-                    
-                    speechSynthesis.speak(utterance);
-                  }, 100);
-                }
-              }} 
-              variant="secondary" 
-              size="sm"
-            >
-              🗣️ LOUD Voice
-            </SimpleButton>
-            <SimpleButton 
-              onClick={async () => {
-                console.log('=== SYSTEM AUDIO CHECK ===');
-                console.log('Audio context state:', audioContextRef.current?.state);
-                console.log('Audio context sample rate:', audioContextRef.current?.sampleRate);
-                console.log('Audio context destination:', audioContextRef.current?.destination);
-                console.log('Navigator media devices:', !!navigator.mediaDevices);
-                console.log('Speech synthesis voices:', speechSynthesis?.getVoices?.()?.length || 0);
-                
-                // Check system volume capability
-                if (audioContextRef.current) {
-                  const analyser = audioContextRef.current.createAnalyser();
-                  console.log('Audio analyser created:', !!analyser);
-                }
-              }} 
-              variant="secondary" 
-              size="sm"
-            >
-              🔍 System Check
+            <SimpleButton onClick={() => speak('Test voice')} variant="secondary" size="sm">
+              Test Voice
             </SimpleButton>
           </div>
           <div className="text-sm text-gray-400">
-            <div>Audio Status: {audioInitialized ? '✅ Ready' : '❌ Not Ready'}</div>
-            <div>Audio Context: {audioContextRef.current?.state || 'None'}</div>
-            <div>Speech Synthesis: {'speechSynthesis' in window ? '✅ Available' : '❌ Not Available'}</div>
-            <div>Audio Enabled: {settings.audioEnabled ? '✅ Yes' : '❌ No'}</div>
-            <div>Browser: {navigator.userAgent.includes('Chrome') ? 'Chrome' : 
-                         navigator.userAgent.includes('Firefox') ? 'Firefox' : 
-                         navigator.userAgent.includes('Safari') ? 'Safari' : 'Other'}</div>
-            <div>Sample Rate: {audioContextRef.current?.sampleRate || 'Unknown'} Hz</div>
-          </div>
-          <div className="mt-3 p-3 bg-gray-800 rounded text-xs text-yellow-300">
-            <strong>Troubleshooting:</strong><br/>
-            • Try "LOUD Test" first - if no sound, check system volume<br/>
-            • "Freq Sweep" should play a rising tone for 2 seconds<br/>
-            • "HTML5 Test" uses different audio method<br/>
-            • Try different browser (Chrome usually works best)<br/>
-            • Check if other websites play audio<br/>
-            • Some browsers need interaction before audio works
+            Audio: {settings.audioEnabled ? 'Enabled' : 'Disabled'} | 
+            Context: {audioContextRef.current?.state || 'None'} | 
+            Voice: {'speechSynthesis' in window ? 'Available' : 'Not Available'}
           </div>
         </div>
 
