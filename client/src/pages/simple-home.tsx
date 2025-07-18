@@ -64,15 +64,65 @@ export default function SimpleHome() {
     localStorage.setItem('hiitSettings', JSON.stringify(settings));
   }, [settings]);
 
-  // Initialize audio context with user interaction
-  const initializeAudio = useCallback(() => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+  // Initialize audio context with comprehensive diagnostics
+  const initializeAudio = useCallback(async () => {
+    console.log('🎵 Initializing audio system...');
+    
+    try {
+      // Test browser audio support
+      console.log('Browser support checks:');
+      console.log('- AudioContext:', !!(window.AudioContext || (window as any).webkitAudioContext));
+      console.log('- Speech Synthesis:', 'speechSynthesis' in window);
+      console.log('- HTML5 Audio:', !!window.Audio);
+      
+      // Initialize audio context
+      if (!audioContextRef.current) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          audioContextRef.current = new AudioContextClass();
+          console.log('✅ AudioContext created, state:', audioContextRef.current.state);
+        } else {
+          console.log('❌ AudioContext not supported');
+          return;
+        }
+      }
+      
+      // Resume audio context if suspended
+      if (audioContextRef.current.state === 'suspended') {
+        console.log('🔄 Resuming suspended audio context...');
+        await audioContextRef.current.resume();
+        console.log('✅ Audio context resumed, state:', audioContextRef.current.state);
+      }
+      
+      // Test a simple beep to verify audio works
+      if (audioContextRef.current.state === 'running') {
+        console.log('🔊 Testing audio with simple beep...');
+        const testOscillator = audioContextRef.current.createOscillator();
+        const testGain = audioContextRef.current.createGain();
+        
+        testOscillator.connect(testGain);
+        testGain.connect(audioContextRef.current.destination);
+        
+        testOscillator.frequency.setValueAtTime(800, audioContextRef.current.currentTime);
+        testOscillator.type = 'sine';
+        
+        testGain.gain.setValueAtTime(0, audioContextRef.current.currentTime);
+        testGain.gain.linearRampToValueAtTime(0.3, audioContextRef.current.currentTime + 0.01);
+        testGain.gain.exponentialRampToValueAtTime(0.001, audioContextRef.current.currentTime + 0.1);
+        
+        testOscillator.start(audioContextRef.current.currentTime);
+        testOscillator.stop(audioContextRef.current.currentTime + 0.1);
+        
+        console.log('✅ Test beep sent to audio destination');
+      }
+      
+      setAudioInitialized(true);
+      console.log('✅ Audio system initialization complete');
+      
+    } catch (error) {
+      console.log('❌ Audio initialization failed:', error);
+      setAudioInitialized(false);
     }
-    if (audioContextRef.current.state === 'suspended') {
-      audioContextRef.current.resume();
-    }
-    setAudioInitialized(true);
   }, []);
 
   // Audio functions - Multi-method beep system for maximum reliability
@@ -117,21 +167,37 @@ export default function SimpleHome() {
         playTone(1000, now, 0.1);        // High beep
         playTone(800, now + 0.12, 0.1);  // Lower beep
         
-        console.log('Web Audio beep played');
+        console.log('✅ Web Audio double-beep played successfully');
         return;
       }
       
+      console.log('⚠️ Web Audio API not running, trying fallback methods...');
+      
       // Method 2: HTML5 Audio with data URL fallback
       try {
+        console.log('🔄 Trying HTML5 Audio fallback...');
         const beepDataUrl = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMeAz2M0/LLeSsFJXfD7N2UQwoUW7Pp68hLFfI=";
         
         const audio = new Audio(beepDataUrl);
-        audio.volume = 0.6;
-        await audio.play();
-        console.log('HTML5 Audio beep played');
+        audio.volume = 0.8;
+        
+        // Check if audio can load
+        audio.addEventListener('canplaythrough', () => {
+          console.log('✅ HTML5 Audio loaded successfully');
+        });
+        
+        audio.addEventListener('error', (e) => {
+          console.log('❌ HTML5 Audio error:', e);
+        });
+        
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          await playPromise;
+          console.log('✅ HTML5 Audio beep played successfully');
+        }
         return;
       } catch (audioError) {
-        console.log('HTML5 Audio failed:', audioError);
+        console.log('❌ HTML5 Audio failed:', audioError);
       }
       
       // Method 3: Programmatic buffer generation
@@ -373,7 +439,6 @@ export default function SimpleHome() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2 text-white">Just HIIT</h1>
-          <p className="text-gray-300">High Intensity Interval Timer</p>
         </div>
 
         {/* Timer Display */}
@@ -424,6 +489,53 @@ export default function SimpleHome() {
           <SimpleButton onClick={stopTimer} variant="outline">
             Stop
           </SimpleButton>
+        </div>
+
+        {/* Audio Debug Controls */}
+        <div className="border border-gray-600 rounded-lg p-4 mb-6">
+          <h3 className="text-lg font-semibold mb-3 text-white">Audio Test Controls</h3>
+          <div className="flex flex-wrap gap-3 mb-4">
+            <SimpleButton 
+              onClick={async () => {
+                console.log('=== BEEP TEST START ===');
+                console.log('Audio enabled:', settings.audioEnabled);
+                console.log('Audio context state:', audioContextRef.current?.state);
+                console.log('User agent:', navigator.userAgent);
+                await playBeep();
+                console.log('=== BEEP TEST END ===');
+              }} 
+              variant="secondary" 
+              size="sm"
+            >
+              🔊 Test Beep
+            </SimpleButton>
+            <SimpleButton 
+              onClick={() => {
+                console.log('=== VOICE TEST START ===');
+                console.log('Speech synthesis supported:', 'speechSynthesis' in window);
+                console.log('Voices available:', speechSynthesis?.getVoices?.()?.length || 0);
+                speak('Test voice announcement');
+                console.log('=== VOICE TEST END ===');
+              }} 
+              variant="secondary" 
+              size="sm"
+            >
+              🗣️ Test Voice
+            </SimpleButton>
+            <SimpleButton 
+              onClick={initializeAudio} 
+              variant="secondary" 
+              size="sm"
+            >
+              🎵 Init Audio
+            </SimpleButton>
+          </div>
+          <div className="text-sm text-gray-400">
+            <div>Audio Status: {audioInitialized ? '✅ Ready' : '❌ Not Ready'}</div>
+            <div>Audio Context: {audioContextRef.current?.state || 'None'}</div>
+            <div>Speech Synthesis: {'speechSynthesis' in window ? '✅ Available' : '❌ Not Available'}</div>
+            <div>Audio Enabled: {settings.audioEnabled ? '✅ Yes' : '❌ No'}</div>
+          </div>
         </div>
 
         {/* Settings Button */}
