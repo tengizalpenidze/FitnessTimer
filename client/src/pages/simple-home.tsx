@@ -211,7 +211,7 @@ export default function SimpleHome() {
           
           // Play beep for last 3 seconds (when countdown shows 3, 2, 1)
           if ((prev.currentPhase === 'workout' || prev.currentPhase === 'rest' || prev.currentPhase === 'setrest') && 
-              (newTimeRemaining === 2 || newTimeRemaining === 1 || newTimeRemaining === 0)) {
+              (newTimeRemaining === 3 || newTimeRemaining === 2 || newTimeRemaining === 1)) {
             setTimeout(() => playBeep(), 100); // Small delay to ensure audio context is ready
           }
           
