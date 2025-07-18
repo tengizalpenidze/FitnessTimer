@@ -79,43 +79,39 @@ export default function SimpleHome() {
     }
   }, []);
 
-  // Simple, reliable beep function
+  // Simple HTML5 audio beep - same approach as working voice
   const playBeep = useCallback(async () => {
     if (!settings.audioEnabled) return;
     
     try {
-      // Initialize audio if needed
-      await initializeAudio();
-      
-      if (!audioContextRef.current || audioContextRef.current.state !== 'running') {
-        // Try HTML5 audio fallback
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMeAz2M0/LLeSsFJXfD7N2UQwoUW7Pp68hLFfI=');
-        audio.volume = 0.5;
-        await audio.play();
-        return;
-      }
-      
-      // Web Audio API beep
-      const oscillator = audioContextRef.current.createOscillator();
-      const gainNode = audioContextRef.current.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContextRef.current.destination);
-      
-      oscillator.frequency.value = 800;
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0, audioContextRef.current.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.3, audioContextRef.current.currentTime + 0.01);
-      gainNode.gain.linearRampToValueAtTime(0, audioContextRef.current.currentTime + 0.15);
-      
-      oscillator.start(audioContextRef.current.currentTime);
-      oscillator.stop(audioContextRef.current.currentTime + 0.15);
-      
+      // Create a simple beep using the same method as voice (HTML5 Audio)
+      const audio = new Audio();
+      // Short beep sound as base64 - more reliable than Web Audio API
+      audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMeAz2M0/LLeSsFJXfD7N2UQwoUW7Pp68hLFfI=';
+      audio.volume = 0.7;
+      audio.load(); // Ensure audio is loaded
+      await audio.play();
     } catch (error) {
-      console.log('Beep failed:', error);
+      // Secondary fallback - simple Web Audio API
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.frequency.value = 800;
+        osc.type = 'sine';
+        gain.gain.value = 0.3;
+        
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } catch (fallbackError) {
+        console.log('Beep failed:', fallbackError);
+      }
     }
-  }, [settings.audioEnabled, initializeAudio]);
+  }, [settings.audioEnabled]);
 
   // Simple, direct voice function
   const speak = useCallback((text: string) => {
