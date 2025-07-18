@@ -494,40 +494,146 @@ export default function SimpleHome() {
         {/* Audio Debug Controls */}
         <div className="border border-gray-600 rounded-lg p-4 mb-6">
           <h3 className="text-lg font-semibold mb-3 text-white">Audio Test Controls</h3>
-          <div className="flex flex-wrap gap-3 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4">
             <SimpleButton 
               onClick={async () => {
-                console.log('=== BEEP TEST START ===');
-                console.log('Audio enabled:', settings.audioEnabled);
-                console.log('Audio context state:', audioContextRef.current?.state);
-                console.log('User agent:', navigator.userAgent);
-                await playBeep();
-                console.log('=== BEEP TEST END ===');
+                console.log('=== LOUD BEEP TEST START ===');
+                // Create a very loud, obvious beep
+                try {
+                  const ctx = audioContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
+                  if (ctx.state === 'suspended') await ctx.resume();
+                  
+                  const osc = ctx.createOscillator();
+                  const gain = ctx.createGain();
+                  
+                  osc.connect(gain);
+                  gain.connect(ctx.destination);
+                  
+                  osc.frequency.setValueAtTime(1000, ctx.currentTime);
+                  osc.type = 'square'; // Harsher sound
+                  
+                  gain.gain.setValueAtTime(0, ctx.currentTime);
+                  gain.gain.linearRampToValueAtTime(0.9, ctx.currentTime + 0.05); // Very loud
+                  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+                  
+                  osc.start(ctx.currentTime);
+                  osc.stop(ctx.currentTime + 0.5);
+                  
+                  console.log('✅ LOUD beep sent - should be very audible');
+                } catch (e) {
+                  console.log('❌ Loud beep failed:', e);
+                }
               }} 
               variant="secondary" 
               size="sm"
             >
-              🔊 Test Beep
+              🔊 LOUD Test
             </SimpleButton>
+            <SimpleButton 
+              onClick={async () => {
+                console.log('=== FREQUENCY SWEEP TEST ===');
+                try {
+                  const ctx = audioContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
+                  if (ctx.state === 'suspended') await ctx.resume();
+                  
+                  const osc = ctx.createOscillator();
+                  const gain = ctx.createGain();
+                  
+                  osc.connect(gain);
+                  gain.connect(ctx.destination);
+                  
+                  // Sweep from 200Hz to 2000Hz
+                  osc.frequency.setValueAtTime(200, ctx.currentTime);
+                  osc.frequency.exponentialRampToValueAtTime(2000, ctx.currentTime + 2);
+                  osc.type = 'sawtooth';
+                  
+                  gain.gain.setValueAtTime(0.7, ctx.currentTime);
+                  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2);
+                  
+                  osc.start(ctx.currentTime);
+                  osc.stop(ctx.currentTime + 2);
+                  
+                  console.log('✅ Frequency sweep sent - should hear rising tone');
+                } catch (e) {
+                  console.log('❌ Frequency sweep failed:', e);
+                }
+              }} 
+              variant="secondary" 
+              size="sm"
+            >
+              🎵 Freq Sweep
+            </SimpleButton>
+            <SimpleButton 
+              onClick={async () => {
+                console.log('=== HTML5 AUDIO TEST ===');
+                try {
+                  // Create a simple click sound
+                  const audio = new Audio();
+                  audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMeAz2M0/LLeSsFJXfD7N2UQwoUW7Pp68hLFfI=';
+                  audio.volume = 1.0; // Maximum volume
+                  
+                  // Force load and play
+                  audio.load();
+                  const playPromise = audio.play();
+                  if (playPromise) {
+                    await playPromise;
+                    console.log('✅ HTML5 audio should have played');
+                  }
+                } catch (e) {
+                  console.log('❌ HTML5 audio failed:', e);
+                }
+              }} 
+              variant="secondary" 
+              size="sm"
+            >
+              🎯 HTML5 Test
+            </SimpleButton>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-4">
             <SimpleButton 
               onClick={() => {
-                console.log('=== VOICE TEST START ===');
-                console.log('Speech synthesis supported:', 'speechSynthesis' in window);
-                console.log('Voices available:', speechSynthesis?.getVoices?.()?.length || 0);
-                speak('Test voice announcement');
-                console.log('=== VOICE TEST END ===');
+                console.log('=== VOICE VOLUME TEST ===');
+                if ('speechSynthesis' in window) {
+                  speechSynthesis.cancel();
+                  setTimeout(() => {
+                    const utterance = new SpeechSynthesisUtterance('LOUD TEST VOICE ANNOUNCEMENT');
+                    utterance.rate = 0.8;
+                    utterance.volume = 1.0; // Maximum volume
+                    utterance.pitch = 1.0;
+                    utterance.lang = 'en-US';
+                    
+                    utterance.onstart = () => console.log('✅ Speech started');
+                    utterance.onend = () => console.log('✅ Speech ended');
+                    utterance.onerror = (e) => console.log('❌ Speech error:', e);
+                    
+                    speechSynthesis.speak(utterance);
+                  }, 100);
+                }
               }} 
               variant="secondary" 
               size="sm"
             >
-              🗣️ Test Voice
+              🗣️ LOUD Voice
             </SimpleButton>
             <SimpleButton 
-              onClick={initializeAudio} 
+              onClick={async () => {
+                console.log('=== SYSTEM AUDIO CHECK ===');
+                console.log('Audio context state:', audioContextRef.current?.state);
+                console.log('Audio context sample rate:', audioContextRef.current?.sampleRate);
+                console.log('Audio context destination:', audioContextRef.current?.destination);
+                console.log('Navigator media devices:', !!navigator.mediaDevices);
+                console.log('Speech synthesis voices:', speechSynthesis?.getVoices?.()?.length || 0);
+                
+                // Check system volume capability
+                if (audioContextRef.current) {
+                  const analyser = audioContextRef.current.createAnalyser();
+                  console.log('Audio analyser created:', !!analyser);
+                }
+              }} 
               variant="secondary" 
               size="sm"
             >
-              🎵 Init Audio
+              🔍 System Check
             </SimpleButton>
           </div>
           <div className="text-sm text-gray-400">
@@ -535,6 +641,19 @@ export default function SimpleHome() {
             <div>Audio Context: {audioContextRef.current?.state || 'None'}</div>
             <div>Speech Synthesis: {'speechSynthesis' in window ? '✅ Available' : '❌ Not Available'}</div>
             <div>Audio Enabled: {settings.audioEnabled ? '✅ Yes' : '❌ No'}</div>
+            <div>Browser: {navigator.userAgent.includes('Chrome') ? 'Chrome' : 
+                         navigator.userAgent.includes('Firefox') ? 'Firefox' : 
+                         navigator.userAgent.includes('Safari') ? 'Safari' : 'Other'}</div>
+            <div>Sample Rate: {audioContextRef.current?.sampleRate || 'Unknown'} Hz</div>
+          </div>
+          <div className="mt-3 p-3 bg-gray-800 rounded text-xs text-yellow-300">
+            <strong>Troubleshooting:</strong><br/>
+            • Try "LOUD Test" first - if no sound, check system volume<br/>
+            • "Freq Sweep" should play a rising tone for 2 seconds<br/>
+            • "HTML5 Test" uses different audio method<br/>
+            • Try different browser (Chrome usually works best)<br/>
+            • Check if other websites play audio<br/>
+            • Some browsers need interaction before audio works
           </div>
         </div>
 
