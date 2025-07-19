@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Just HIIT",
+    "slug": "just-hiit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#111827"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.justhiit.timer",
+      "buildNumber": "1",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "NSMicrophoneUsageDescription": "This app does not use the microphone",
+        "AVAudioSessionCategoryPlayback": "YES"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#111827"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.justhiit.timer",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.VIBRATE",
+        "android.permission.WAKE_LOCK"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
