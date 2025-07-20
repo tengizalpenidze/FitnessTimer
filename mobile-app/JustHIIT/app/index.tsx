@@ -10,11 +10,6 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { Audio } from 'expo-av';
-import { keepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import * as Haptics from 'expo-haptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
 
@@ -51,94 +46,33 @@ export default function JustHIITApp() {
   const [voiceSound, setVoiceSound] = useState();
   const intervalRef = useRef(null);
 
-  // Load settings from storage
+  // Load settings from storage (simplified for basic version)
   useEffect(() => {
-    loadSettings();
+    console.log('Timer app loaded - basic version');
   }, []);
-
-  // Audio setup
-  useEffect(() => {
-    setupAudio();
-    return () => {
-      if (sound) {
-        sound.unloadAsync();
-      }
-      if (voiceSound) {
-        voiceSound.unloadAsync();
-      }
-    };
-  }, []);
-
-  // Keep awake when timer is active
-  useEffect(() => {
-    if (timerState.isActive) {
-      keepAwakeAsync();
-    } else {
-      deactivateKeepAwake();
-    }
-  }, [timerState.isActive]);
 
   const loadSettings = async () => {
-    try {
-      const savedSettings = await AsyncStorage.getItem('hiitSettings');
-      if (savedSettings) {
-        setSettings(JSON.parse(savedSettings));
-      }
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
+    console.log('Settings loaded from memory');
   };
 
   const saveSettings = async (newSettings) => {
-    try {
-      await AsyncStorage.setItem('hiitSettings', JSON.stringify(newSettings));
-      setSettings(newSettings);
-    } catch (error) {
-      console.error('Error saving settings:', error);
-    }
+    setSettings(newSettings);
+    console.log('Settings saved to memory');
   };
 
   const setupAudio = async () => {
-    try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        staysActiveInBackground: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-    } catch (error) {
-      console.error('Error setting up audio:', error);
-    }
+    console.log('Audio setup - basic version');
   };
 
   const playBeep = async () => {
     if (!settings.audioEnabled) return;
-    
-    try {
-      // Try to load beep sound, fallback to haptic feedback
-      if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-      console.log('🔊 BEEP!');
-    } catch (error) {
-      console.error('Error playing beep:', error);
-    }
+    console.log('🔊 BEEP! (Basic version - will add haptics later)');
   };
 
   const playVoice = async (text) => {
     if (!settings.audioEnabled) return;
-    
-    try {
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-      console.log(`🗣️ Voice: "${text}"`);
-      // Brief alert for voice cues
-      Alert.alert('Timer', text, [], { cancelable: true });
-    } catch (error) {
-      console.error('Error playing voice:', error);
-    }
+    console.log(`🗣️ Voice: "${text}"`);
+    Alert.alert('Timer', text, [], { cancelable: true });
   };
 
   // Timer logic
@@ -229,10 +163,6 @@ export default function JustHIITApp() {
     clearInterval(intervalRef.current);
     playVoice('Workout Complete!');
     
-    if (Platform.OS === 'ios') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-    
     return {
       ...currentState,
       currentPhase: PHASES.COMPLETE,
@@ -318,10 +248,7 @@ export default function JustHIITApp() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
-      <LinearGradient
-        colors={['#1F2937', '#111827']}
-        style={styles.gradient}
-      >
+      <View style={styles.gradient}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Just HIIT</Text>
@@ -332,15 +259,12 @@ export default function JustHIITApp() {
 
         {/* Timer Circle */}
         <View style={styles.timerContainer}>
-          <LinearGradient
-            colors={getPhaseColor()}
-            style={styles.timerCircle}
-          >
+          <View style={[styles.timerCircle, { backgroundColor: getPhaseColor()[0] }]}>
             <View style={styles.timerInner}>
               <Text style={styles.phaseText}>{getPhaseText()}</Text>
               <Text style={styles.timeText}>{formatTime(timerState.timeRemaining)}</Text>
             </View>
-          </LinearGradient>
+          </View>
         </View>
 
         {/* Control Buttons */}
@@ -388,7 +312,7 @@ export default function JustHIITApp() {
             <Text style={styles.statValue}>{settings.roundsPerSet}</Text>
           </View>
         </View>
-      </LinearGradient>
+      </View>
     </SafeAreaView>
   );
 }
@@ -400,6 +324,7 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+    backgroundColor: '#1F2937',
   },
   header: {
     alignItems: 'center',

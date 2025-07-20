@@ -38,11 +38,6 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "expo-av",
-      "expo-keep-awake",
-      "expo-haptics"
-    ]
+    }
   }
 }
