@@ -4,9 +4,10 @@
     "slug": "just-hiit",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon-minimal.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "scheme": "justhiit",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",

@@ -10,40 +10,43 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { Audio } from 'expo-av';
+import { keepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
 
 // Timer phases
 const PHASES = {
-  PREPARE: 'prepare',
-  WORKOUT: 'workout',
-  REST: 'rest',
-  SET_REST: 'setrest',
-  COMPLETE: 'complete'
+  PREPARE: 'PREPARE',
+  WORK: 'WORK', 
+  REST: 'REST',
+  SET_REST: 'SET_REST',
+  COMPLETE: 'COMPLETE'
 };
 
-export default function App() {
-  // Timer settings
+export default function JustHIITApp() {
+  // Default settings matching web app
   const [settings, setSettings] = useState({
-    workoutTime: 40,
-    restTime: 20,
+    workTime: 40,
+    restTime: 20, 
     roundsPerSet: 5,
     numberOfSets: 5,
     setRestTime: 60,
     audioEnabled: true,
   });
 
-  // Timer state
   const [timerState, setTimerState] = useState({
-    isActive: false,
     currentPhase: PHASES.PREPARE,
     timeRemaining: 5, // 5 second prepare time
     currentRound: 1,
     currentSet: 1,
-    totalTime: 0,
+    isActive: false,
+    isPaused: false,
   });
 
-  // Audio
   const [sound, setSound] = useState();
   const [voiceSound, setVoiceSound] = useState();
   const intervalRef = useRef(null);
@@ -113,23 +116,13 @@ export default function App() {
     if (!settings.audioEnabled) return;
     
     try {
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        require('./assets/beep.mp3'), // We'll need to add this audio file
-        { shouldPlay: true, volume: 0.8 }
-      );
-      await newSound.playAsync();
-      setTimeout(() => newSound.unloadAsync(), 1000);
-      
-      // Add haptic feedback
+      // Try to load beep sound, fallback to haptic feedback
       if (Platform.OS === 'ios') {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
+      console.log('🔊 BEEP!');
     } catch (error) {
       console.error('Error playing beep:', error);
-      // Fallback to haptic only
-      if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
     }
   };
 
@@ -137,54 +130,45 @@ export default function App() {
     if (!settings.audioEnabled) return;
     
     try {
-      // For now, use haptic feedback and console log
-      // Future: Implement text-to-speech or audio files
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       console.log(`🗣️ Voice: "${text}"`);
-      // Show brief alert for voice cues
+      // Brief alert for voice cues
       Alert.alert('Timer', text, [], { cancelable: true });
     } catch (error) {
       console.error('Error playing voice:', error);
     }
   };
 
-  const startTimer = () => {
-    setTimerState(prev => ({ 
-      ...prev, 
-      isActive: true,
-      currentPhase: PHASES.PREPARE,
-      timeRemaining: 5,
-      currentRound: 1,
-      currentSet: 1,
-      totalTime: 0
-    }));
-
-    playVoice('Get Ready');
+  // Timer logic
+  useEffect(() => {
+    if (timerState.isActive && !timerState.isPaused) {
+      intervalRef.current = setInterval(() => {
+        setTimerState(prevState => {
+          const newTimeRemaining = prevState.timeRemaining - 1;
+          
+          // Play beeps at 3, 2, 1 seconds
+          if (newTimeRemaining <= 3 && newTimeRemaining >= 1) {
+            playBeep();
+          }
+          
+          if (newTimeRemaining <= 0) {
+            return handlePhaseTransition(prevState);
+          }
+          
+          return {
+            ...prevState,
+            timeRemaining: newTimeRemaining
+          };
+        });
+      }, 1000);
+    } else {
+      clearInterval(intervalRef.current);
+    }
     
-    intervalRef.current = setInterval(() => {
-      setTimerState(prev => {
-        const newTimeRemaining = prev.timeRemaining - 1;
-        
-        // Play beep for last 3 seconds
-        if ((prev.currentPhase === PHASES.WORKOUT || prev.currentPhase === PHASES.REST || prev.currentPhase === PHASES.SET_REST) && 
-            (newTimeRemaining === 3 || newTimeRemaining === 2 || newTimeRemaining === 1)) {
-          setTimeout(() => playBeep(), 100);
-        }
-        
-        if (newTimeRemaining <= 0) {
-          return handlePhaseTransition(prev);
-        }
-        
-        return {
-          ...prev,
-          timeRemaining: newTimeRemaining,
-          totalTime: prev.totalTime + 1
-        };
-      });
-    }, 1000);
-  };
+    return () => clearInterval(intervalRef.current);
+  }, [timerState.isActive, timerState.isPaused]);
 
   const handlePhaseTransition = (currentState) => {
     const { currentPhase, currentRound, currentSet } = currentState;
@@ -194,11 +178,11 @@ export default function App() {
         playVoice('Start');
         return {
           ...currentState,
-          currentPhase: PHASES.WORKOUT,
-          timeRemaining: settings.workoutTime
+          currentPhase: PHASES.WORK,
+          timeRemaining: settings.workTime
         };
         
-      case PHASES.WORKOUT:
+      case PHASES.WORK:
         if (currentRound < settings.roundsPerSet) {
           playVoice('Rest');
           return {
@@ -208,32 +192,32 @@ export default function App() {
             currentRound: currentRound + 1
           };
         } else if (currentSet < settings.numberOfSets) {
-          playVoice('Set Complete - Long Rest');
+          playVoice('Set Rest');
           return {
             ...currentState,
             currentPhase: PHASES.SET_REST,
             timeRemaining: settings.setRestTime,
-            currentSet: currentSet + 1,
-            currentRound: 1
+            currentRound: 1,
+            currentSet: currentSet + 1
           };
         } else {
           return completeWorkout(currentState);
         }
         
       case PHASES.REST:
-        playVoice('Start');
+        playVoice('Work');
         return {
           ...currentState,
-          currentPhase: PHASES.WORKOUT,
-          timeRemaining: settings.workoutTime
+          currentPhase: PHASES.WORK,
+          timeRemaining: settings.workTime
         };
         
       case PHASES.SET_REST:
-        playVoice('New Set - Start');
+        playVoice('Work');
         return {
           ...currentState,
-          currentPhase: PHASES.WORKOUT,
-          timeRemaining: settings.workoutTime
+          currentPhase: PHASES.WORK,
+          timeRemaining: settings.workTime
         };
         
       default:
@@ -251,26 +235,49 @@ export default function App() {
     
     return {
       ...currentState,
-      isActive: false,
       currentPhase: PHASES.COMPLETE,
-      timeRemaining: 0
+      timeRemaining: 0,
+      isActive: false
     };
   };
 
-  const stopTimer = () => {
+  const startTimer = () => {
+    if (timerState.currentPhase === PHASES.COMPLETE) {
+      // Reset workout
+      setTimerState({
+        currentPhase: PHASES.PREPARE,
+        timeRemaining: 5,
+        currentRound: 1,
+        currentSet: 1,
+        isActive: true,
+        isPaused: false,
+      });
+    } else {
+      setTimerState(prev => ({
+        ...prev,
+        isActive: true,
+        isPaused: false,
+      }));
+    }
+  };
+
+  const pauseTimer = () => {
+    setTimerState(prev => ({
+      ...prev,
+      isPaused: !prev.isPaused,
+    }));
+  };
+
+  const resetTimer = () => {
     clearInterval(intervalRef.current);
     setTimerState({
-      isActive: false,
       currentPhase: PHASES.PREPARE,
       timeRemaining: 5,
       currentRound: 1,
       currentSet: 1,
-      totalTime: 0
+      isActive: false,
+      isPaused: false,
     });
-  };
-
-  const resetTimer = () => {
-    stopTimer();
   };
 
   const formatTime = (seconds) => {
@@ -279,25 +286,32 @@ export default function App() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getPhaseColor = () => {
-    switch (timerState.currentPhase) {
-      case PHASES.WORKOUT: return ['#EF4444', '#DC2626']; // Red gradient
-      case PHASES.REST: return ['#10B981', '#059669']; // Green gradient  
-      case PHASES.SET_REST: return ['#3B82F6', '#2563EB']; // Blue gradient
-      case PHASES.COMPLETE: return ['#8B5CF6', '#7C3AED']; // Purple gradient
-      default: return ['#6B7280', '#4B5563']; // Gray gradient
-    }
-  };
-
   const getPhaseText = () => {
     switch (timerState.currentPhase) {
       case PHASES.PREPARE: return 'Get Ready';
-      case PHASES.WORKOUT: return 'WORK';
+      case PHASES.WORK: return 'WORK';
       case PHASES.REST: return 'REST';
       case PHASES.SET_REST: return 'SET REST';
       case PHASES.COMPLETE: return 'COMPLETE!';
-      default: return 'READY';
+      default: return '';
     }
+  };
+
+  const getPhaseColor = () => {
+    switch (timerState.currentPhase) {
+      case PHASES.PREPARE: return ['#3B82F6', '#1E40AF'];
+      case PHASES.WORK: return ['#EF4444', '#DC2626'];
+      case PHASES.REST: return ['#10B981', '#059669'];
+      case PHASES.SET_REST: return ['#F59E0B', '#D97706'];
+      case PHASES.COMPLETE: return ['#8B5CF6', '#7C3AED'];
+      default: return ['#6B7280', '#4B5563'];
+    }
+  };
+
+  const getActionButtonText = () => {
+    if (!timerState.isActive) return 'START';
+    if (timerState.isPaused) return 'RESUME';
+    return 'PAUSE';
   };
 
   return (
@@ -329,26 +343,37 @@ export default function App() {
           </LinearGradient>
         </View>
 
-        {/* Controls */}
+        {/* Control Buttons */}
         <View style={styles.controls}>
-          {!timerState.isActive ? (
-            <TouchableOpacity style={styles.startButton} onPress={startTimer}>
-              <Text style={styles.buttonText}>START</Text>
+          <TouchableOpacity 
+            style={[styles.button, styles.primaryButton]} 
+            onPress={startTimer}
+          >
+            <Text style={styles.buttonText}>{getActionButtonText()}</Text>
+          </TouchableOpacity>
+          
+          {timerState.isActive && (
+            <TouchableOpacity 
+              style={[styles.button, styles.secondaryButton]} 
+              onPress={pauseTimer}
+            >
+              <Text style={styles.buttonText}>{timerState.isPaused ? 'RESUME' : 'PAUSE'}</Text>
             </TouchableOpacity>
-          ) : (
-            <View style={styles.controlRow}>
-              <TouchableOpacity style={styles.stopButton} onPress={stopTimer}>
-                <Text style={styles.buttonText}>STOP</Text>
-              </TouchableOpacity>
-            </View>
           )}
+          
+          <TouchableOpacity 
+            style={[styles.button, styles.secondaryButton]} 
+            onPress={resetTimer}
+          >
+            <Text style={styles.buttonText}>RESET</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Stats */}
-        <View style={styles.stats}>
+        {/* Settings Display */}
+        <View style={styles.settingsContainer}>
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>Work</Text>
-            <Text style={styles.statValue}>{settings.workoutTime}s</Text>
+            <Text style={styles.statValue}>{settings.workTime}s</Text>
           </View>
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>Rest</Text>
@@ -385,41 +410,34 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: 5,
   },
   subtitle: {
     fontSize: 16,
     color: '#9CA3AF',
-    textAlign: 'center',
   },
   timerContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
+    marginVertical: 40,
   },
   timerCircle: {
     width: width * 0.7,
     height: width * 0.7,
-    borderRadius: width * 0.35,
-    alignItems: 'center',
+    borderRadius: (width * 0.7) / 2,
     justifyContent: 'center',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
+    alignItems: 'center',
   },
   timerInner: {
-    width: width * 0.65,
-    height: width * 0.65,
-    borderRadius: width * 0.325,
+    width: '85%',
+    height: '85%',
+    borderRadius: (width * 0.7 * 0.85) / 2,
     backgroundColor: '#1F2937',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   phaseText: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 10,
   },
@@ -427,49 +445,37 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   controls: {
-    paddingHorizontal: 40,
-    paddingBottom: 20,
-  },
-  controlRow: {
     flexDirection: 'row',
     justifyContent: 'center',
+    gap: 15,
+    paddingHorizontal: 20,
+    marginBottom: 40,
   },
-  startButton: {
-    backgroundColor: '#10B981',
-    paddingVertical: 18,
-    paddingHorizontal: 60,
+  button: {
+    paddingVertical: 15,
+    paddingHorizontal: 25,
     borderRadius: 25,
-    elevation: 5,
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    minWidth: 100,
+    alignItems: 'center',
   },
-  stopButton: {
+  primaryButton: {
     backgroundColor: '#EF4444',
-    paddingVertical: 18,
-    paddingHorizontal: 60,
-    borderRadius: 25,
-    elevation: 5,
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+  },
+  secondaryButton: {
+    backgroundColor: '#374151',
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
   },
-  stats: {
+  settingsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingHorizontal: 20,
-    paddingBottom: 30,
+    paddingHorizontal: 40,
+    paddingBottom: 40,
   },
   statItem: {
     alignItems: 'center',
@@ -477,11 +483,11 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     color: '#9CA3AF',
-    marginBottom: 4,
+    marginBottom: 5,
   },
   statValue: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
 });
