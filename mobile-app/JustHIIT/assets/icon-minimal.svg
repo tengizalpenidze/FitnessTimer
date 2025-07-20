@@ -1,0 +1,38 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Ultra minimal design -->
+  <defs>
+    <linearGradient id="minimalBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#111827;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1F2937;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#EF4444;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F97316;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="200" fill="url(#minimalBg)"/>
+  
+  <!-- Main circle -->
+  <circle cx="512" cy="512" r="300" fill="none" stroke="url(#accentGradient)" stroke-width="20"/>
+  
+  <!-- Progress arc (3/4 complete) -->
+  <path d="M 512 212 A 300 300 0 1 1 724.26 724.26" fill="none" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round"/>
+  
+  <!-- Center dot -->
+  <circle cx="512" cy="512" r="16" fill="#FFFFFF"/>
+  
+  <!-- Simple H mark for HIIT -->
+  <g transform="translate(512,512)">
+    <rect x="-60" y="-80" width="16" height="160" fill="#FFFFFF" rx="8"/>
+    <rect x="44" y="-80" width="16" height="160" fill="#FFFFFF" rx="8"/>
+    <rect x="-52" y="-8" width="104" height="16" fill="#FFFFFF" rx="8"/>
+  </g>
+  
+  <!-- Intensity indicators -->
+  <circle cx="512" cy="300" r="8" fill="url(#accentGradient)"/>
+  <circle cx="650" cy="374" r="6" fill="url(#accentGradient)" opacity="0.8"/>
+  <circle cx="724" cy="512" r="6" fill="url(#accentGradient)" opacity="0.6"/>
+  <circle cx="650" cy="650" r="6" fill="url(#accentGradient)" opacity="0.4"/>
+</svg>

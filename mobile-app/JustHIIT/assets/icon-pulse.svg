@@ -1,0 +1,45 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Pulse/heartbeat themed design -->
+  <defs>
+    <linearGradient id="pulseBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0F172A;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1E293B;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="pulseRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#DC2626;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#EF4444;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F87171;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="200" fill="url(#pulseBg)"/>
+  
+  <!-- Pulse wave -->
+  <path d="M 150 512 L 200 512 L 250 400 L 300 624 L 350 300 L 400 700 L 450 512 L 874 512" 
+        fill="none" stroke="url(#pulseRed)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Pulse dots -->
+  <circle cx="300" cy="624" r="12" fill="url(#pulseRed)">
+    <animate attributeName="r" values="12;20;12" dur="1.5s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0.5;1" dur="1.5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="350" cy="300" r="8" fill="url(#pulseRed)">
+    <animate attributeName="r" values="8;16;8" dur="1.5s" begin="0.3s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0.5;1" dur="1.5s" begin="0.3s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="400" cy="700" r="10" fill="url(#pulseRed)">
+    <animate attributeName="r" values="10;18;10" dur="1.5s" begin="0.6s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0.5;1" dur="1.5s" begin="0.6s" repeatCount="indefinite"/>
+  </circle>
+  
+  <!-- Center circle with timer -->
+  <circle cx="512" cy="350" r="120" fill="none" stroke="#FFFFFF" stroke-width="8"/>
+  
+  <!-- Timer text -->
+  <text x="512" y="365" font-family="Arial, sans-serif" font-size="48" font-weight="700" text-anchor="middle" fill="#FFFFFF">HIIT</text>
+  
+  <!-- Countdown numbers -->
+  <text x="512" y="600" font-family="Arial, sans-serif" font-size="96" font-weight="900" text-anchor="middle" fill="url(#pulseRed)">3</text>
+  <text x="512" y="700" font-family="Arial, sans-serif" font-size="32" font-weight="500" text-anchor="middle" fill="#94A3B8">TIMER</text>
+</svg>
